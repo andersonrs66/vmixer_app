@@ -23,6 +23,7 @@
     }
     h1 { font-weight: 600; letter-spacing: -0.02em; margin: 0 0 0.25rem; }
     .sub { color: var(--muted); margin-bottom: 1.5rem; }
+    a { color: var(--accent); }
     .status { font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; }
     .ok { color: var(--accent); }
     .grid {
@@ -56,7 +57,9 @@
 </head>
 <body>
   <h1>Retornos AUX</h1>
-  <p class="sub">Escolha o AUX do seu monitor. Ajustes sincronizam com a mesa com um pequeno atraso.</p>
+  <p class="sub">Escolha o AUX do seu monitor. Ajustes sincronizam com a mesa com um pequeno atraso.
+    <a href="/config">Configuração</a>
+  </p>
   <p class="status">
     Mesa:
     {% if health.connected %}<span class="ok">conectada</span>{% else %}desconectada / sync…{% endif %}

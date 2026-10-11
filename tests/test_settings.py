@@ -28,6 +28,36 @@ numeros = [1, 3]
     assert s.config_path == cfg
 
 
+def test_save_roundtrip(tmp_path: Path, monkeypatch):
+    from vmixer.settings import Settings, save_settings
+
+    target = tmp_path / "nested" / "config.toml"
+    monkeypatch.setenv("VMIXER_CONFIG", str(target))
+    saved = save_settings(
+        Settings(
+            transport="telnet",
+            telnet_host="10.1.2.3",
+            telnet_port=8023,
+            serial_port="/dev/ttyUSB1",
+            baud=57600,
+            listen_host="127.0.0.1",
+            listen_port=9090,
+            auxes=(2, 4),
+        )
+    )
+    assert saved == target
+    monkeypatch.delenv("VMIXER_TRANSPORT", raising=False)
+    monkeypatch.delenv("VMIXER_TELNET_HOST", raising=False)
+    monkeypatch.delenv("VMIXER_AUXES", raising=False)
+    again = load_settings()
+    assert again.transport == "telnet"
+    assert again.telnet_host == "10.1.2.3"
+    assert again.serial_port == "/dev/ttyUSB1"
+    assert again.baud == 57600
+    assert again.listen_port == 9090
+    assert again.auxes == (2, 4)
+
+
 def test_env_overrides_file(tmp_path: Path, monkeypatch):
     cfg = tmp_path / "config.toml"
     cfg.write_text(

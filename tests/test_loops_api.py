@@ -35,6 +35,42 @@ def test_poller_and_flusher_roundtrip():
         client.close()
 
 
+def test_offline_home_opens_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("VMIXER_CONFIG", str(tmp_path / "config.toml"))
+    monkeypatch.setenv("VMIXER_TRANSPORT", "telnet")
+    monkeypatch.setenv("VMIXER_TELNET_HOST", "127.0.0.1")
+    monkeypatch.setenv("VMIXER_TELNET_PORT", "1")
+    monkeypatch.delenv("VMIXER_AUXES", raising=False)
+    from vmixer import api as api_mod
+
+    with TestClient(api_mod.app) as client:
+        home = client.get("/", follow_redirects=False)
+        assert home.status_code == 303
+        assert home.headers["location"] == "/config"
+        page = client.get("/config")
+        assert page.status_code == 200
+        assert "Transporte" in page.text
+        assert "Mesa (Telnet)" in page.text
+        assert 'name="mesa_ip"' in page.text
+        saved = client.post(
+            "/config",
+            data={
+                "transporte": "fake",
+                "mesa_ip": "10.0.0.9",
+                "mesa_porta": "8023",
+                "serial_dispositivo": "/dev/ttyUSB0",
+                "serial_baud": "115200",
+                "web_endereco": "0.0.0.0",
+                "web_porta": "8080",
+                "aux_numeros": ["1", "2"],
+            },
+            follow_redirects=False,
+        )
+        assert saved.status_code == 303
+        assert saved.headers["location"] == "/"
+        assert client.get("/").status_code == 200
+
+
 def test_api_home_and_put(monkeypatch):
     monkeypatch.setenv("VMIXER_TRANSPORT", "fake")
     monkeypatch.setenv("VMIXER_AUXES", "1,2")

@@ -40,6 +40,55 @@ def config_path(explicit: Optional[str] = None) -> Optional[Path]:
     return None
 
 
+def save_path(settings: Optional[Settings] = None) -> Path:
+    env = os.environ.get("VMIXER_CONFIG")
+    if env:
+        return Path(env)
+    if settings and settings.config_path:
+        return settings.config_path
+    found = config_path()
+    if found:
+        return found
+    return _APP_ROOT / "config.toml"
+
+
+def save_settings(settings: Settings, path: Optional[Path] = None) -> Path:
+    target = path or save_path(settings)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    auxes = ", ".join(str(n) for n in settings.auxes)
+    text = f"""# Configuração do app V-Mixer (Roland M-200i)
+# Depois de editar: sudo systemctl restart vmixer
+
+# Como falar com a mesa:
+#   telnet      — IP na porta LAN da mesa (recomendado)
+#   serial      — cabo RS-232C / USB-serial
+#   fake        — teste sem mesa
+#   fake-telnet — teste do dialecto LAN, sem mesa
+transporte = "{settings.transport}"
+
+[mesa]
+# IP da M-200i (porta LAN, não REAC). Porta Telnet padrão: 8023
+ip = "{settings.telnet_host}"
+porta = {int(settings.telnet_port)}
+
+[serial]
+# Só usado se transporte = "serial"
+dispositivo = "{settings.serial_port}"
+baud = {int(settings.baud)}
+
+[web]
+# 0.0.0.0 = acessível na rede (celulares na mesma Wi-Fi)
+endereco = "{settings.listen_host}"
+porta = {int(settings.listen_port)}
+
+[aux]
+# Quais AUXes aparecem na tela (M-200i: 1–8)
+numeros = [{auxes}]
+"""
+    target.write_text(text, encoding="utf-8")
+    return target
+
+
 def load_settings(
     path: Optional[str] = None,
     environ: Optional[Mapping[str, str]] = None,
