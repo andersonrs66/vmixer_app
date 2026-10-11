@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AUX {{ aux }} — V-Mixer</title>
+  <style>
+    :root {
+      --bg: #0a1428;
+      --bg-strip: #0c1830;
+      --fg: #e8eef4;
+      --muted: #9aa8b8;
+      --scale: #d0d8e0;
+      --track: #000000;
+      --cyan: #5ef0ff;
+      --cyan-dim: #2ab8c8;
+      --dirty: #e0b44e;
+      --strip-w: 5.5rem;
+      --fader-h: min(62vh, 420px);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      background: radial-gradient(900px 500px at 50% -20%, #152a48, var(--bg));
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid #1a2a40;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: 0.02em; }
+    a { color: var(--cyan); text-decoration: none; font-size: 0.9rem; }
+    .status { color: var(--muted); font-size: 0.75rem; margin: 0.2rem 0 0; }
+
+    .bank-tabs {
+      display: flex;
+      gap: 0.35rem;
+      padding: 0.65rem 0.75rem 0.15rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .bank-tab {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      padding: 0.45rem 0.85rem 0.55rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .bank-tab:hover { color: var(--fg); }
+    .bank-tab[aria-selected="true"] {
+      color: var(--cyan);
+      border-bottom-color: var(--cyan);
+    }
+    .bank-tab .bank-dirty-dot {
+      display: none;
+      width: 0.4rem;
+      height: 0.4rem;
+      border-radius: 50%;
+      background: var(--dirty);
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+    .bank-tab.has-dirty .bank-dirty-dot { display: inline-block; }
+
+    #board {
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      padding: 0.55rem 0.5rem 1.25rem;
+      scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch;
+    }
+    .bank {
+      display: none;
+      gap: 2px;
+      width: 100%;
+    }
+    .bank.active {
+      display: flex;
+    }
+
+    .strip {
+      flex: 0 0 var(--strip-w);
+      width: var(--strip-w);
+      background: linear-gradient(180deg, #102038 0%, var(--bg-strip) 40%, #081020 100%);
+      border: 1px solid #1c2e48;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.45rem 0.2rem 0.5rem;
+      min-height: calc(var(--fader-h) + 5.5rem);
+    }
+    .strip-head {
+      text-align: center;
+      margin-bottom: 0.35rem;
+      width: 100%;
+    }
+    .strip-name {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      padding: 0 0.15rem;
+      line-height: 1.15;
+    }
+    .strip-num {
+      font-size: 0.65rem;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-top: 0.15rem;
+    }
+
+    .fader-area {
+      position: relative;
+      width: 100%;
+      height: var(--fader-h);
+      display: grid;
+      grid-template-columns: 1.55rem 1fr;
+      gap: 0;
+      padding: 0.15rem 0.25rem 0.15rem 0.1rem;
+    }
+
+    .scale {
+      position: relative;
+      height: 100%;
+      font-size: 0.58rem;
+      color: var(--scale);
+      font-variant-numeric: tabular-nums;
+      user-select: none;
+    }
+    .tick {
+      position: absolute;
+      right: 0;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      gap: 0.15rem;
+      width: 100%;
+      justify-content: flex-end;
+    }
+    .tick span {
+      line-height: 1;
+      opacity: 0.92;
+    }
+    .tick::after {
+      content: "";
+      display: block;
+      height: 1px;
+      background: var(--scale);
+      opacity: 0.85;
+    }
+    .tick.major::after { width: 0.55rem; }
+    .tick.zero::after {
+      width: 0.85rem;
+      height: 2px;
+      background: #fff;
+      opacity: 1;
+    }
+    .tick.minor::after { width: 0.32rem; opacity: 0.55; }
+    .tick.inf span { font-size: 0.7rem; }
+
+    .pot {
+      position: relative;
+      height: 100%;
+      /* allow horizontal page scroll; only the knob captures vertical drag */
+      touch-action: pan-x;
+      user-select: none;
+    }
+    .track {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      transform: translateX(-50%);
+      background: var(--track);
+      border-radius: 1px;
+      box-shadow: inset 0 0 0 1px #222;
+      pointer-events: none;
+    }
+    .cap {
+      position: absolute;
+      left: 50%;
+      width: 1.7rem;
+      height: 1.7rem;
+      transform: translate(-50%, -50%);
+      border: 2px solid var(--cyan);
+      border-radius: 0.28rem;
+      background: rgba(10, 24, 40, 0.55);
+      box-shadow:
+        0 0 8px rgba(94, 240, 255, 0.75),
+        0 0 18px rgba(94, 240, 255, 0.35),
+        inset 0 0 6px rgba(94, 240, 255, 0.15);
+      pointer-events: auto;
+      cursor: grab;
+      touch-action: none;
+      /* larger invisible hit area for thumbs */
+      z-index: 2;
+    }
+    .cap::after {
+      content: "";
+      position: absolute;
+      inset: -0.55rem -0.65rem;
+    }
+    .cap:active { cursor: grabbing; }
+    .cap::before {
+      content: "";
+      position: absolute;
+      left: -18%;
+      right: -18%;
+      top: 50%;
+      height: 2px;
+      transform: translateY(-50%);
+      background: var(--cyan);
+      box-shadow: 0 0 6px rgba(94, 240, 255, 0.9);
+      pointer-events: none;
+    }
+    .strip.dirty .cap {
+      border-color: var(--dirty);
+      box-shadow:
+        0 0 8px rgba(224, 180, 78, 0.7),
+        0 0 16px rgba(224, 180, 78, 0.3);
+    }
+    .strip.dirty .cap::before {
+      background: var(--dirty);
+      box-shadow: 0 0 6px rgba(224, 180, 78, 0.9);
+    }
+
+    .readout-wrap {
+      margin-top: 0.95rem;
+      width: 100%;
+      padding: 0 0.2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.15rem;
+    }
+    .readout {
+      width: 100%;
+      max-width: 4.6rem;
+      box-sizing: border-box;
+      background: #061018;
+      border: 1px solid #2a3e58;
+      border-radius: 4px;
+      color: var(--fg);
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+      text-align: center;
+      padding: 0.28rem 0.2rem;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+    .readout::-webkit-outer-spin-button,
+    .readout::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .readout:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 1px rgba(94, 240, 255, 0.35);
+    }
+    .strip.dirty .readout {
+      border-color: var(--dirty);
+      color: var(--dirty);
+    }
+    .readout-hint {
+      font-size: 0.55rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 id="aux-title">{{ aux_name }}</h1>
+      <p class="status">
+        AUX {{ aux }}
+        · {% if health.connected %}sync OK{% else %}aguardando mesa…{% endif %}
+        · dirty {{ health.dirty_count }}
+      </p>
+    </div>
+    <a href="/">Trocar AUX</a>
+  </header>
+
+  <nav class="bank-tabs" role="tablist" aria-label="Blocos de canais">
+    <button type="button" class="bank-tab" role="tab" data-bank="0" aria-selected="true">1–8<span class="bank-dirty-dot" aria-hidden="true"></span></button>
+    <button type="button" class="bank-tab" role="tab" data-bank="1" aria-selected="false">9–16<span class="bank-dirty-dot" aria-hidden="true"></span></button>
+    <button type="button" class="bank-tab" role="tab" data-bank="2" aria-selected="false">17–24<span class="bank-dirty-dot" aria-hidden="true"></span></button>
+    <button type="button" class="bank-tab" role="tab" data-bank="3" aria-selected="false">25–32<span class="bank-dirty-dot" aria-hidden="true"></span></button>
+  </nav>
+
+  <div id="board">
+    {% for bank in range(4) %}
+    <div class="bank{% if bank == 0 %} active{% endif %}" data-bank="{{ bank }}" role="tabpanel" {% if bank != 0 %}hidden{% endif %}>
+      {% for ch in channels if ((ch.channel - 1) // 8) == bank %}
+      <div
+        class="strip {% if ch.dirty %}dirty{% endif %}"
+        data-ch="{{ ch.channel }}"
+        data-bank="{{ bank }}"
+        data-db="{{ -80 if ch.level_db is none else ch.level_db }}"
+      >
+        <div class="strip-head">
+          <div class="strip-name">{{ ch.name or ("CH " ~ ch.channel) }}</div>
+          <div class="strip-num">CH {{ ch.channel }}</div>
+        </div>
+        <div class="fader-area">
+          <div class="scale" aria-hidden="true"></div>
+          <div class="pot" role="slider"
+               aria-valuemin="-80" aria-valuemax="10"
+               aria-valuenow="{{ -80 if ch.level_db is none else ch.level_db }}"
+               aria-label="Canal {{ ch.channel }}">
+            <div class="track"></div>
+            <div class="cap"></div>
+          </div>
+        </div>
+        <div class="readout-wrap">
+          <input
+            class="readout"
+            type="text"
+            inputmode="decimal"
+            enterkeyhint="done"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Volume canal {{ ch.channel }} em dB"
+            value="{{ ch.level_label }}"
+          />
+          <span class="readout-hint">dB</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    /* Non-linear mixer-like scale: +10 .. 0 .. -60 .. -∞(-80) */
+    const MARKS = [
+      { db: 10, label: "10", major: true },
+      { db: 5, label: "5", major: true },
+      { db: 0, label: "0", major: true, zero: true },
+      { db: -5, label: "5", major: true },
+      { db: -10, label: "10", major: true },
+      { db: -15, label: "15", major: true },
+      { db: -20, label: "20", major: true },
+      { db: -30, label: "30", major: true },
+      { db: -40, label: "40", major: true },
+      { db: -50, label: "50", major: true },
+      { db: -60, label: "60", major: true },
+      { db: -80, label: "−∞", major: true, inf: true },
+    ];
+
+    // Anchor positions 0 (top) .. 1 (bottom)
+    const CURVE = [
+      [10, 0.00],
+      [5, 0.08],
+      [0, 0.16],
+      [-5, 0.26],
+      [-10, 0.36],
+      [-15, 0.44],
+      [-20, 0.52],
+      [-30, 0.64],
+      [-40, 0.74],
+      [-50, 0.83],
+      [-60, 0.91],
+      [-80, 1.00],
+    ];
+
+    function dbToPos(db) {
+      const v = Number(db);
+      if (v >= CURVE[0][0]) return CURVE[0][1];
+      if (v <= CURVE[CURVE.length - 1][0]) return CURVE[CURVE.length - 1][1];
+      for (let i = 0; i < CURVE.length - 1; i++) {
+        const [d0, p0] = CURVE[i];
+        const [d1, p1] = CURVE[i + 1];
+        if (v <= d0 && v >= d1) {
+          const t = (d0 - v) / (d0 - d1);
+          return p0 + t * (p1 - p0);
+        }
+      }
+      return 1;
+    }
+
+    function posToDb(pos) {
+      const p = Math.min(1, Math.max(0, pos));
+      for (let i = 0; i < CURVE.length - 1; i++) {
+        const [d0, p0] = CURVE[i];
+        const [d1, p1] = CURVE[i + 1];
+        if (p >= p0 && p <= p1) {
+          const t = (p - p0) / (p1 - p0 || 1);
+          return d0 + t * (d1 - d0);
+        }
+      }
+      return -80;
+    }
+
+    function formatDb(db) {
+      const v = Number(db);
+      if (v <= -80) return "−∞";
+      return (Math.round(v * 10) / 10).toFixed(1);
+    }
+
+    function apiLevel(db) {
+      const v = Number(db);
+      if (v <= -80) return -80;
+      return Math.round(v * 10) / 10;
+    }
+
+    function parseDbInput(text) {
+      const t = String(text).trim().toLowerCase()
+        .replace(",", ".")
+        .replace(/\s*db\s*$/i, "")
+        .replace("−", "-");
+      if (t === "" || t === "inf" || t === "-inf" || t === "-∞" || t === "∞" || t === "-oo") {
+        return -80;
+      }
+      const n = Number(t);
+      if (!Number.isFinite(n)) return null;
+      return Math.max(-80, Math.min(10, n));
+    }
+
+    const HOLD_SEND_MS = 300;
+
+    function createSender(strip) {
+      let inFlight = false;
+      let queued = null;
+
+      async function pump() {
+        if (inFlight) return;
+        inFlight = true;
+        while (queued) {
+          const job = queued;
+          queued = null;
+          try {
+            const r = await fetch(`/api/aux/{{ aux }}/channel/${strip.dataset.ch}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ level_db: job.level, live: job.live }),
+            });
+            if (r.ok && !job.live) {
+              const data = await r.json();
+              if (data.synced) setStripDb(strip, job.level, { dirty: false });
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        inFlight = false;
+      }
+
+      return function send(db, live) {
+        queued = { level: apiLevel(db), live };
+        return pump();
+      };
+    }
+
+    async function commitLevel(strip, db) {
+      const level = apiLevel(db);
+      setStripDb(strip, level, { dirty: true });
+      await strip._send(level, false);
+    }
+
+    function buildScales() {
+      document.querySelectorAll(".scale").forEach((scale) => {
+        scale.innerHTML = "";
+        MARKS.forEach((m) => {
+          const el = document.createElement("div");
+          el.className = "tick major" + (m.zero ? " zero" : "") + (m.inf ? " inf" : "");
+          el.style.top = (dbToPos(m.db) * 100) + "%";
+          el.innerHTML = "<span>" + m.label + "</span>";
+          scale.appendChild(el);
+        });
+      });
+    }
+
+    function setStripDb(strip, db, { dirty } = {}) {
+      const pot = strip.querySelector(".pot");
+      const cap = strip.querySelector(".cap");
+      const readout = strip.querySelector(".readout");
+      const pos = dbToPos(db);
+      cap.style.top = (pos * 100) + "%";
+      strip.dataset.db = String(db);
+      pot.setAttribute("aria-valuenow", String(apiLevel(db)));
+      if (document.activeElement !== readout) {
+        readout.value = formatDb(db);
+      }
+      if (dirty === true) strip.classList.add("dirty");
+      if (dirty === false) strip.classList.remove("dirty");
+      if (dirty === true || dirty === false) refreshBankDirtyDots();
+    }
+
+    function bindReadout(strip) {
+      const input = strip.querySelector(".readout");
+
+      function apply() {
+        const parsed = parseDbInput(input.value);
+        if (parsed === null) {
+          input.value = formatDb(strip.dataset.db);
+          return;
+        }
+        commitLevel(strip, parsed);
+        input.value = formatDb(parsed);
+        input.blur();
+      }
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          apply();
+        } else if (e.key === "Escape") {
+          input.value = formatDb(strip.dataset.db);
+          input.blur();
+        }
+      });
+      input.addEventListener("change", apply);
+      input.addEventListener("focus", () => {
+        strip.dataset.editing = "1";
+        input.select();
+      });
+      input.addEventListener("blur", () => {
+        strip.dataset.editing = "0";
+      });
+    }
+
+    function bindPot(strip) {
+      const pot = strip.querySelector(".pot");
+      const cap = strip.querySelector(".cap");
+      let dragging = false;
+      let grabOffsetY = 0;
+      let holdTimer = null;
+      let lastLiveSent = null;
+
+      function clientY(e) {
+        return e.touches ? e.touches[0].clientY : e.clientY;
+      }
+
+      function sendLiveIfMoved() {
+        const level = apiLevel(strip.dataset.db);
+        if (level === lastLiveSent) return;
+        lastLiveSent = level;
+        strip._send(level, true);
+      }
+
+      function move(e) {
+        if (!dragging) return;
+        e.preventDefault();
+        const rect = pot.getBoundingClientRect();
+        const y = clientY(e) - grabOffsetY;
+        const pos = (y - rect.top) / rect.height;
+        setStripDb(strip, posToDb(pos), { dirty: true });
+      }
+
+      async function end() {
+        if (!dragging) return;
+        dragging = false;
+        if (holdTimer !== null) {
+          clearInterval(holdTimer);
+          holdTimer = null;
+        }
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("touchmove", move);
+        window.removeEventListener("touchend", end);
+        try {
+          await commitLevel(strip, strip.dataset.db);
+        } finally {
+          strip.dataset.dragging = "0";
+        }
+      }
+
+      function start(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragging = true;
+        lastLiveSent = null;
+        strip.dataset.dragging = "1";
+        strip.classList.add("dirty");
+        refreshBankDirtyDots();
+        const capRect = cap.getBoundingClientRect();
+        grabOffsetY = clientY(e) - (capRect.top + capRect.height / 2);
+        holdTimer = setInterval(sendLiveIfMoved, HOLD_SEND_MS);
+        window.addEventListener("pointermove", move, { passive: false });
+        window.addEventListener("pointerup", end);
+        window.addEventListener("touchmove", move, { passive: false });
+        window.addEventListener("touchend", end);
+      }
+
+      cap.addEventListener("pointerdown", start);
+      cap.addEventListener("touchstart", start, { passive: false });
+    }
+
+    buildScales();
+    document.querySelectorAll(".strip").forEach((strip) => {
+      strip._send = createSender(strip);
+      setStripDb(strip, Number(strip.dataset.db));
+      bindPot(strip);
+      bindReadout(strip);
+    });
+
+    function selectBank(bank) {
+      const id = String(bank);
+      document.querySelectorAll(".bank-tab").forEach((tab) => {
+        const on = tab.dataset.bank === id;
+        tab.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      document.querySelectorAll(".bank").forEach((panel) => {
+        const on = panel.dataset.bank === id;
+        panel.classList.toggle("active", on);
+        panel.hidden = !on;
+      });
+      const board = document.getElementById("board");
+      if (board) board.scrollLeft = 0;
+    }
+
+    function refreshBankDirtyDots() {
+      document.querySelectorAll(".bank-tab").forEach((tab) => {
+        const bank = tab.dataset.bank;
+        const dirty = document.querySelector(
+          `.strip[data-bank="${bank}"].dirty`
+        );
+        tab.classList.toggle("has-dirty", Boolean(dirty));
+      });
+    }
+
+    document.querySelectorAll(".bank-tab").forEach((tab) => {
+      tab.addEventListener("click", () => selectBank(tab.dataset.bank));
+    });
+    refreshBankDirtyDots();
+
+    function levelsMatch(a, b) {
+      const na = Number(a);
+      const nb = Number(b);
+      const infA = !Number.isFinite(na) || na <= -80;
+      const infB = !Number.isFinite(nb) || nb <= -80;
+      if (infA && infB) return true;
+      return Math.abs(na - nb) < 0.15;
+    }
+
+    setInterval(async () => {
+      if (document.querySelector('.strip[data-dragging="1"]')) return;
+      if (document.querySelector('.strip[data-editing="1"]')) return;
+      const r = await fetch(`/api/aux/{{ aux }}`);
+      const data = await r.json();
+      for (const ch of data.channels) {
+        const strip = document.querySelector(`.strip[data-ch="${ch.channel}"]`);
+        if (!strip) continue;
+        const nameEl = strip.querySelector(".strip-name");
+        if (nameEl && ch.name) nameEl.textContent = ch.name;
+        const serverDb = ch.level_db === null ? -80 : ch.level_db;
+        // Never clobber a local edit: keep UI until server has our value and cleared dirty.
+        if (strip.classList.contains("dirty")) {
+          if (!ch.dirty && levelsMatch(serverDb, strip.dataset.db)) {
+            setStripDb(strip, serverDb, { dirty: false });
+          }
+          continue;
+        }
+        if (ch.dirty) {
+          setStripDb(strip, serverDb, { dirty: true });
+          continue;
+        }
+        setStripDb(strip, serverDb, { dirty: false });
+      }
+      refreshBankDirtyDots();
+      if (data.name) {
+        const title = document.getElementById("aux-title");
+        if (title) title.textContent = data.name;
+      }
+    }, 2000);
+  </script>
+</body>
+</html>

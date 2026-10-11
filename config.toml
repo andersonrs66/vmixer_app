@@ -1,0 +1,28 @@
+# Configuração do app V-Mixer (Roland M-200i)
+# Depois de editar: sudo systemctl restart vmixer
+
+# Como falar com a mesa:
+#   telnet      — IP na porta LAN da mesa (recomendado)
+#   serial      — cabo RS-232C / USB-serial
+#   fake        — teste sem mesa
+#   fake-telnet — teste do dialecto LAN, sem mesa
+transporte = "fake"
+
+[mesa]
+# IP da M-200i (porta LAN, não REAC). Porta Telnet padrão: 8023
+ip = "192.168.0.50"
+porta = 8023
+
+[serial]
+# Só usado se transporte = "serial"
+dispositivo = "/dev/ttyUSB0"
+baud = 115200
+
+[web]
+# 0.0.0.0 = acessível na rede (celulares na mesma Wi-Fi)
+endereco = "0.0.0.0"
+porta = 8080
+
+[aux]
+# Quais AUXes aparecem na tela (M-200i: 1–8)
+numeros = [1, 2, 3, 4, 5, 6, 7, 8]

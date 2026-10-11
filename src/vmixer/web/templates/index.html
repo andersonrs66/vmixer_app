@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>V-Mixer — escolher AUX</title>
+  <style>
+    :root {
+      --bg: #0a1428;
+      --fg: #e8eef4;
+      --accent: #5ef0ff;
+      --muted: #9aa8b8;
+      --card: #102038;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #152a48, var(--bg));
+      color: var(--fg);
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+    h1 { font-weight: 600; letter-spacing: -0.02em; margin: 0 0 0.25rem; }
+    .sub { color: var(--muted); margin-bottom: 1.5rem; }
+    .status { font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; }
+    .ok { color: var(--accent); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+      gap: 0.75rem;
+      max-width: 40rem;
+    }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--fg);
+      padding: 1rem 0.6rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px #1c2e48;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      align-items: center;
+      min-height: 4.2rem;
+    }
+    button .aux-id { font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+    button .aux-name { font-size: 1rem; letter-spacing: 0.02em; }
+    button:hover { box-shadow: inset 0 0 0 2px var(--accent); }
+    form { display: contents; }
+  </style>
+</head>
+<body>
+  <h1>Retornos AUX</h1>
+  <p class="sub">Escolha o AUX do seu monitor. Ajustes sincronizam com a mesa com um pequeno atraso.</p>
+  <p class="status">
+    Mesa:
+    {% if health.connected %}<span class="ok">conectada</span>{% else %}desconectada / sync…{% endif %}
+    {% if health.version %} · {{ health.version }}{% endif %}
+    · dirty {{ health.dirty_count }}
+  </p>
+  <div class="grid" id="aux-grid">
+    {% for a in auxes %}
+    <form method="post" action="/api/session">
+      <input type="hidden" name="aux" value="{{ a.id }}" />
+      <button type="submit" data-aux="{{ a.id }}">
+        <span class="aux-id">AUX {{ a.id }}</span>
+        <span class="aux-name">{{ a.name }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+  <script>
+    setInterval(async () => {
+      try {
+        const r = await fetch("/api/auxes");
+        const data = await r.json();
+        for (const a of data.auxes) {
+          const btn = document.querySelector(`button[data-aux="${a.id}"] .aux-name`);
+          if (btn) btn.textContent = a.name;
+        }
+      } catch (e) {}
+    }, 3000);
+  </script>
+</body>
+</html>
